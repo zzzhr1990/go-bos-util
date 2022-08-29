@@ -96,6 +96,25 @@ func CreateSimpleUploader(c *bos.Client, reader io.Reader, fileSize int64) *Simp
 func (uploader *SimpleUploader) SimplelUpload(bucket string, object string, contentType string, args *api.InitiateMultipartUploadArgs) (*api.CompleteMultipartUploadResult, error) {
 
 	c := uploader.client
+	size := uploader.fileSize
+	if size < MIN_MULTIPART_SIZE || c.MultipartSize < MIN_MULTIPART_SIZE {
+		// do simple upload
+		buffer, err := io.ReadAll(uploader.reader)
+		if err != nil {
+			return nil, err
+		}
+		if EncryptFunction != nil {
+			buffer = EncryptFunction(buffer)
+		}
+		body, _ := bce.NewBodyFromBytes(buffer)
+		uploader.crc32Hasher.Write(buffer)
+		hash, err := c.PutObject(bucket, object, body, nil)
+		if err != nil {
+			return nil, err
+		}
+		return &api.CompleteMultipartUploadResult{ETag: hash, Bucket: bucket, Key: object}, nil
+		// return bce.NewBceClientError("multipart size should not be less than 1MB")
+	}
 	initiateMultipartUploadResult, err := api.InitiateMultipartUpload(c, bucket, object, contentType, args)
 	if err != nil {
 		return nil, err
