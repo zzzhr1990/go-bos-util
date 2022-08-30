@@ -46,10 +46,6 @@ func (p *ProgressReader) FileSize() int64 {
 }
 */
 
-var (
-	EncryptFunction func(data []byte) []byte = nil
-)
-
 const (
 	// DEFAULT_SERVICE_DOMAIN = bce.DEFAULT_REGION + ".bcebos.com"
 	DEFAULT_MAX_PARALLEL   = 10
@@ -70,14 +66,20 @@ type SimpleUploader struct {
 	//FileName  string
 	// MD5Bytes []byte
 	reader io.Reader
+
+	encryptFunction func(data []byte) []byte
+
+	concurrent int
 }
 
-func CreateSimpleUploader(c *bos.Client, reader io.Reader, fileSize int64) *SimpleUploader {
+func CreateSimpleUploader(c *bos.Client, reader io.Reader, fileSize int64, encryptFunction func(data []byte) []byte, concurrent int) *SimpleUploader {
 	return &SimpleUploader{
-		client:      c,
-		fileSize:    fileSize,
-		crc32Hasher: crc32.NewIEEE(),
-		reader:      reader,
+		client:          c,
+		fileSize:        fileSize,
+		crc32Hasher:     crc32.NewIEEE(),
+		reader:          reader,
+		encryptFunction: encryptFunction,
+		concurrent:      concurrent,
 	}
 }
 
@@ -103,8 +105,8 @@ func (uploader *SimpleUploader) SimplelUpload(bucket string, object string, cont
 		if err != nil {
 			return nil, err
 		}
-		if EncryptFunction != nil {
-			buffer = EncryptFunction(buffer)
+		if uploader.encryptFunction != nil {
+			buffer = uploader.encryptFunction(buffer)
 		}
 		body, _ := bce.NewBodyFromBytes(buffer)
 		uploader.crc32Hasher.Write(buffer)
@@ -183,8 +185,8 @@ func (uploader *SimpleUploader) simplePartUpload(bucket string, object string, u
 		if read != int(uploadSize) {
 			buffer = buffer[:read]
 		}
-		if EncryptFunction != nil {
-			buffer = EncryptFunction(buffer)
+		if uploader.encryptFunction != nil {
+			buffer = uploader.encryptFunction(buffer)
 		}
 		partBody, _ := bce.NewBodyFromBytes(buffer)
 		uploader.crc32Hasher.Write(buffer)
@@ -250,8 +252,8 @@ func (uploader *SimpleUploader) ParallelUpload(bucket string, object string, con
 		if err != nil {
 			return nil, err
 		}
-		if EncryptFunction != nil {
-			buffer = EncryptFunction(buffer)
+		if uploader.encryptFunction != nil {
+			buffer = uploader.encryptFunction(buffer)
 		}
 		body, _ := bce.NewBodyFromBytes(buffer)
 		uploader.crc32Hasher.Write(buffer)
@@ -334,8 +336,8 @@ func (uploader *SimpleUploader) parallelPartUpload(bucket string, object string,
 		if read != int(uploadSize) {
 			buffer = buffer[:read]
 		}
-		if EncryptFunction != nil {
-			buffer = EncryptFunction(buffer)
+		if uploader.encryptFunction != nil {
+			buffer = uploader.encryptFunction(buffer)
 		}
 		partBody, _ := bce.NewBodyFromBytes(buffer)
 		uploader.crc32Hasher.Write(buffer)
