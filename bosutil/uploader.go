@@ -311,9 +311,14 @@ func (uploader *SimpleUploader) parallelPartUpload(bucket string, object string,
 		partNum = (fileSize + partSize - 1) / partSize
 	}
 
-	parallelChan := make(chan int, c.MaxParallel)
+	parallel := c.MaxParallel
+	if uploader.concurrent > 0 {
+		parallel = int64(uploader.concurrent)
+	}
 
-	errChan := make(chan error, c.MaxParallel)
+	parallelChan := make(chan int, parallel)
+
+	errChan := make(chan error, parallel)
 
 	resultChan := make(chan api.UploadInfoType, partNum)
 
